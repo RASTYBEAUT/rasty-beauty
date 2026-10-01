@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Checkout | RASTY BEAUTY</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Poppins:wght@300;400;500;600;700&family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabase-config.js"></script>
+<style>
+.payment-box{margin-top:10px;padding:18px;border:1px solid #ead5dd;border-radius:16px;background:#fff7fa}
+.payment-box strong{display:block;margin-bottom:7px}
+.payment-number{font-size:20px;font-weight:700;letter-spacing:.5px}
+.payment-note{font-size:13px;margin:6px 0 0;color:#7c6570}
+.proof-box{margin-top:14px;padding:15px;border:1px dashed #c98fa3;border-radius:15px}
+.proof-box input{display:block;width:100%;margin-top:8px}
+.checkout-item{display:flex;justify-content:space-between;gap:15px;padding:10px 0;border-bottom:1px solid #f0e1e6}
+#checkoutMsg{line-height:1.6}
+</style>
+</head>
+<body>
+<div class="topbar">✨ YOUR BEAUTY ORDER IS ALMOST READY ✨</div>
+<header class="navbar">
+  <a class="logo" href="index.html"><span>RASTY</span> BEAUTY</a>
+  <nav><a href="index.html">Home</a><a href="shop.html">Shop</a></nav>
+</header>
+
+<main>
+<section class="section checkout">
+  <div>
+    <span class="eyebrow">CHECKOUT</span>
+    <h1>Complete Your Order</h1>
+
+    <form id="checkoutForm" class="checkout-form">
+      <label>Nama Lengkap<input id="name" required></label>
+      <label>Email<input id="email" type="email" required></label>
+      <label>No. WhatsApp<input id="whatsapp" required></label>
+      <label>Alamat Lengkap<textarea id="address" required rows="4"></textarea></label>
+      <label>Kota<input id="city" required></label>
+
+      <label>Metode Pembayaran
+        <select id="payment" required>
+          <option value="">Pilih metode</option>
+          <option value="BTN">BTN</option>
+          <option value="BRI">BRI</option>
+          <option value="DANA">DANA</option>
+        </select>
+      </label>
+
+      <div id="paymentBox" class="payment-box" style="display:none"></div>
+
+      <div id="proofBox" class="proof-box" style="display:none">
+        <strong>Bukti Pembayaran</strong>
+        <small>Upload screenshot/foto bukti transfer. Format JPG, PNG, atau WEBP, maksimal 5 MB.</small>
+        <input id="paymentProof" type="file" accept="image/jpeg,image/png,image/webp">
+      </div>
+
+      <button class="btn" type="submit">Buat Pesanan ♡</button>
+      <p id="checkoutMsg"></p>
+    </form>
+  </div>
+
+  <aside class="order-summary">
+    <h3>Ringkasan Pesanan</h3>
+    <div id="checkoutItems"></div>
+    <div class="cart-total">
+      <span>Total</span>
+      <strong id="checkoutTotal">Rp0</strong>
+    </div>
+  </aside>
+</section>
+</main>
+
+<script>
+const client = supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_ANON_KEY,
+  {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false
+    }
+  }
+);
+
+let cart = JSON.parse(localStorage.getItem("rastyCart") || "[]");
+
+const PRODUCTS = [
+  {id:1,name:"Velvet Kiss Lip Cream",price:129000},
+  {id:2,name:"Glow Skin Foundation",price:189000},
+  {id:3,name:"Pink Dream Eyeshadow",price:159000},
+  {id:4,name:"Rosy Cheek Blush",price:99000},
+  {id:5,name:"Sweet Nude Lip Tint",price:89000},
+  {id:6,name:"Blossom Cheek Duo",price:119000},
+  {id:7,name:"Everyday Glow Bundle",price:299000},
+  {id:8,name:"Rose Gold Eye Kit",price:329000}
+];
+
+const PAYMENT_INFO = {
+  BTN: {
+    title:"Transfer Bank BTN",
+    number:"11001610206174",
+    holder:"Rasti Mustapa",
+    note:"Silakan transfer sesuai total pesanan."
+  },
+  BRI: {
+    title:"Transfer Bank BRI",
+    number:"513001010711500",
+    holder:"Jefri Puluhulawa",
+    note:"Silakan transfer sesuai total pesanan."
+  },
+  DANA: {
+    title:"DANA",
+    number:"082191559687",
+    holder:"Rasti Mustapa",
+    note:"Kirim sesuai total pesanan ke nomor DANA di atas."
+  }
+};
+
+const rupiah = n => new Intl.NumberFormat("id-ID",{
+  style:"currency",currency:"IDR",maximumFractionDigits:0
+}).format(n);
+
+function getTotal(){
+  return cart.reduce((sum,x)=>{
+    const p=PRODUCTS.find(y=>y.id===x.id);
+    return sum + (p ? p.price*x.qty : 0);
+  },0);
+}
+
+function render(){
+  checkoutItems.innerHTML = cart.map(x=>{
+    const p=PRODUCTS.find(y=>y.id===x.id);
+    if(!p)return "";
+    return `<div class="checkout-item"><span>${p.name} × ${x.qty}</span><strong>${rupiah(p.price*x.qty)}</strong></div>`;
+  }).join("") || "<p>Keranjang masih kosong.</p>";
+  checkoutTotal.textContent=rupiah(getTotal());
+}
+
+function updatePaymentBox(){
+  const method=payment.value;
+  const info=PAYMENT_INFO[method];
+  if(!info){
+    paymentBox.style.display="none";
+    proofBox.style.display="none";
+    return;
+  }
+  paymentBox.style.display="block";
+  proofBox.style.display="block";
+  paymentBox.innerHTML=`
+    <strong>${info.title}</strong>
+    <div class="payment-number">${info.number}</div>
+    <div>A/N ${info.holder}</div>
+    <div class="payment-note">${info.note}</div>
+  `;
+}
+
+payment.addEventListener("change",updatePaymentBox);
+
+checkoutForm.onsubmit=async e=>{
+  e.preventDefault();
+
+  if(!cart.length){
+    checkoutMsg.textContent="Keranjang masih kosong.";
+    return;
+  }
+
+  const customerName=document.getElementById("name").value.trim();
+  const customerEmail=document.getElementById("email").value.trim();
+  const customerWhatsapp=document.getElementById("whatsapp").value.trim();
+  const customerAddress=document.getElementById("address").value.trim();
+  const customerCity=document.getElementById("city").value.trim();
+  const paymentMethod=document.getElementById("payment").value;
+  const proofFile=document.getElementById("paymentProof").files[0];
+
+  if(!customerName||!customerEmail||!customerWhatsapp||!customerAddress||!customerCity||!paymentMethod){
+    checkoutMsg.textContent="Mohon lengkapi semua data checkout.";
+    return;
+  }
+
+  if(!PAYMENT_INFO[paymentMethod]){
+    checkoutMsg.textContent="Pilih metode pembayaran yang tersedia.";
+    return;
+  }
+
+  if(proofFile){
+    const allowed=["image/jpeg","image/png","image/webp"];
+    if(!allowed.includes(proofFile.type)){
+      checkoutMsg.textContent="Bukti pembayaran harus JPG, PNG, atau WEBP.";
+      return;
+    }
+    if(proofFile.size>5*1024*1024){
+      checkoutMsg.textContent="Ukuran bukti pembayaran maksimal 5 MB.";
+      return;
+    }
+  }
+
+  checkoutMsg.textContent="Menyimpan pesanan...";
+
+  const orderId=crypto.randomUUID();
+  const code="RB-"+Date.now().toString().slice(-8);
+  const total=getTotal();
+
+  const order={
+    id:orderId,
+    order_code:code,
+    customer_name:customerName,
+    email:customerEmail,
+    whatsapp:customerWhatsapp,
+    address:customerAddress,
+    city:customerCity,
+    payment_method:paymentMethod,
+    total,
+    payment_status:proofFile ? "Menunggu Verifikasi" : "Menunggu Pembayaran"
+  };
+
+  const {error:orderError}=await client.from("orders").insert(order);
+  if(orderError){
+    checkoutMsg.textContent="Gagal menyimpan pesanan: "+orderError.message;
+    return;
+  }
+
+  const rows=cart.map(x=>{
+    const p=PRODUCTS.find(y=>y.id===x.id);
+    if(!p)return null;
+    return {
+      order_id:orderId,
+      product_name:p.name,
+      qty:x.qty,
+      subtotal:p.price*x.qty
+    };
+  }).filter(Boolean);
+
+  const {error:itemError}=await client.from("order_items").insert(rows);
+  if(itemError){
+    checkoutMsg.textContent="Pesanan utama tersimpan, tetapi detail produk gagal: "+itemError.message;
+    return;
+  }
+
+  if(proofFile){
+    const safeName=proofFile.name.replace(/[^a-zA-Z0-9._-]/g,"_");
+    const proofPath=orderId+"/"+Date.now()+"_"+safeName;
+
+    const {error:uploadError}=await client.storage
+      .from("payment-proofs")
+      .upload(proofPath,proofFile,{contentType:proofFile.type,upsert:false});
+
+    if(uploadError){
+      checkoutMsg.innerHTML=`Pesanan ${code} sudah dibuat, tetapi bukti pembayaran gagal diupload.<br>${uploadError.message}`;
+      localStorage.removeItem("rastyCart");
+      cart=[];
+      render();
+      return;
+    }
+
+    const {error:updateError}=await client.from("orders")
+      .update({payment_proof:proofPath,payment_status:"Menunggu Verifikasi"})
+      .eq("id",orderId);
+
+    if(updateError){
+      checkoutMsg.innerHTML=`Pesanan ${code} dan bukti pembayaran sudah tersimpan, tetapi status bukti gagal diperbarui.<br>${updateError.message}`;
+      localStorage.removeItem("rastyCart");
+      cart=[];
+      render();
+      return;
+    }
+  }
+
+  localStorage.removeItem("rastyCart");
+  cart=[];
+  checkoutForm.reset();
+  updatePaymentBox();
+  render();
+
+  checkoutMsg.innerHTML=`<strong>Pesanan berhasil dibuat!</strong><br>
+    Nomor pesanan: <strong>${code}</strong><br>
+    Status pembayaran: <strong>${proofFile ? "Menunggu Verifikasi" : "Menunggu Pembayaran"}</strong><br>
+    Simpan nomor pesanan ini untuk keperluan konfirmasi.`;
+};
+
+render();
+</script>
+</body>
+</html>
